@@ -389,7 +389,10 @@ public class MainForm : Form
         _clearHistBtn.Click += OnClearHistory;
         hdr.Controls.Add(_clearHistBtn, 1, 0);
 
+        var spacer = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = Color.Transparent };
+
         card.Controls.Add(hdr);
+        card.Controls.Add(spacer);
 
         // ListView
         _historyView.Dock         = DockStyle.Fill;
