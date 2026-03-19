@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace BaumKeyGenerator;
@@ -6,23 +6,23 @@ namespace BaumKeyGenerator;
 public class MainForm : Form
 {
     // ── Controls ────────────────────────────────────────────────────────────
-    private readonly ComboBox    _typeCombo       = new();
-    private readonly TextBox     _purposeBox      = new();
-    private readonly Panel       _vaultPanel      = new();
-    private readonly TextBox     _vaultPassBox    = new();
-    private readonly CheckBox    _vaultAutoCheck  = new();
-    private readonly Button      _generateBtn     = new() { Text = "Generate" };
-    private readonly TextBox     _outputBox       = new();
-    private readonly TextBox     _vaultPassOut    = new();   // shows plain password for vaultwarden
-    private readonly Button      _copyOutputBtn   = new() { Text = "Copy" };
-    private readonly Button      _copyPassBtn     = new() { Text = "Copy Password" };
-    private readonly Label       _copiedLabel     = new() { Text = "Copied!", Visible = false };
-    private readonly ListView    _historyView     = new();
-    private readonly Button      _clearHistBtn    = new() { Text = "Clear History" };
-    private readonly Label       _statusLabel     = new();
+    private readonly ComboBox _typeCombo      = new();
+    private readonly TextBox  _purposeBox     = new();
+    private readonly Panel    _vaultPanel     = new();
+    private readonly TextBox  _vaultPassBox   = new();
+    private readonly CheckBox _vaultAutoCheck = new();
+    private readonly Button   _generateBtn    = new() { Text = "Generate" };
+    private readonly TextBox  _outputBox      = new();
+    private readonly TextBox  _vaultPassOut   = new();
+    private readonly Button   _copyOutputBtn  = new() { Text = "Copy" };
+    private readonly Button   _copyPassBtn    = new() { Text = "Copy Password" };
+    private readonly Label    _copiedLabel    = new() { Text = "Copied!", Visible = false };
+    private readonly Panel    _vaultOutPanel  = new() { Visible = false };
+    private readonly ListView _historyView    = new();
+    private readonly Button   _clearHistBtn   = new() { Text = "Clear History" };
+    private readonly Label    _statusLabel    = new();
 
-    private List<HistoryEntry>   _history         = [];
-    private string?              _lastVaultPass;
+    private List<HistoryEntry> _history = [];
 
     public MainForm()
     {
@@ -35,318 +35,381 @@ public class MainForm : Form
     private void BuildUI()
     {
         Text            = "BaumKeyGenerator";
-        Size            = new Size(860, 720);
+        Size            = new Size(900, 720);
         MinimumSize     = new Size(760, 620);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
         AppTheme.ApplyToForm(this);
 
-        // ── Outer layout: top panel + history panel ──
-        var outer = new TableLayoutPanel
+        // Root: 3 rows — title bar, top card (controls + output), history
+        var root = new TableLayoutPanel
         {
             Dock        = DockStyle.Fill,
-            RowCount    = 2,
+            RowCount    = 3,
             ColumnCount = 1,
             BackColor   = AppTheme.Background,
-            Padding     = new Padding(0),
+            Padding     = new Padding(10),
+            CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
         };
-        outer.RowStyles.Add(new RowStyle(SizeType.Absolute, 340));
-        outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        Controls.Add(outer);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));   // title
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 300));  // controls + output
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // history
+        Controls.Add(root);
 
-        // ── Top card ──
-        var topCard = MakeCard();
-        outer.Controls.Add(topCard, 0, 0);
-
-        // ── History card ──
-        var histCard = MakeCard();
-        histCard.Padding = new Padding(16, 12, 16, 12);
-        outer.Controls.Add(histCard, 0, 1);
-
-        BuildTopCard(topCard);
-        BuildHistoryCard(histCard);
+        root.Controls.Add(BuildTitleRow(),    0, 0);
+        root.Controls.Add(BuildMiddleRow(),   0, 1);
+        root.Controls.Add(BuildHistoryCard(), 0, 2);
     }
 
-    private static Panel MakeCard()
-    {
-        return new Panel
-        {
-            Dock      = DockStyle.Fill,
-            BackColor = AppTheme.Surface,
-            Padding   = new Padding(20, 16, 20, 16),
-            Margin    = new Padding(10),
-        };
-    }
+    // ── Title row ─────────────────────────────────────────────────────────────
 
-    private void BuildTopCard(Panel card)
+    private static Label BuildTitleRow()
     {
-        // Title
-        var title = new Label
+        return new Label
         {
             Text      = "BaumKeyGenerator",
-            Dock      = DockStyle.Top,
-            Height    = 36,
+            Dock      = DockStyle.Fill,
             Font      = AppTheme.FontTitle,
             ForeColor = AppTheme.TextPrimary,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft,
+            Padding   = new Padding(4, 0, 0, 0),
         };
-        card.Controls.Add(title);
+    }
 
-        // Two-column inner layout: left = controls, right = output
-        var inner = new TableLayoutPanel
+    // ── Middle row: left controls + right output side by side ─────────────────
+
+    private TableLayoutPanel BuildMiddleRow()
+    {
+        var mid = new TableLayoutPanel
         {
             Dock        = DockStyle.Fill,
             RowCount    = 1,
             ColumnCount = 2,
-            BackColor   = Color.Transparent,
+            BackColor   = AppTheme.Surface,
+            Padding     = new Padding(16, 12, 16, 12),
+            Margin      = new Padding(0),
         };
-        inner.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
-        inner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        card.Controls.Add(inner);
+        mid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290));
+        mid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        BuildLeftControls(inner);
-        BuildRightOutput(inner);
+        mid.Controls.Add(BuildLeftGrid(),  0, 0);
+        mid.Controls.Add(BuildRightGrid(), 1, 0);
+        return mid;
     }
 
-    private void BuildLeftControls(TableLayoutPanel parent)
+    // ── Left grid: key type, purpose, vault panel, generate, status ───────────
+
+    private TableLayoutPanel BuildLeftGrid()
     {
-        var left = new Panel
+        // Row heights (px): label, combo, gap, label, textbox, gap, vault, gap, btn, status, fill
+        var grid = new TableLayoutPanel
         {
-            Dock      = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            Padding   = new Padding(0, 4, 16, 0),
+            Dock        = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount    = 11,
+            BackColor   = Color.Transparent,
+            Padding     = new Padding(0, 0, 14, 0),
         };
-        parent.Controls.Add(left, 0, 0);
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));  // 0 key type label
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));  // 1 key type combo
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));   // 2 gap
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));  // 3 purpose label
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));  // 4 purpose textbox
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));   // 5 gap
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));  // 6 vault panel (hidden)
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));   // 7 gap
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));  // 8 generate button
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));  // 9 status label
+        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // 10 fill
 
-        // Key Type
-        var typeLabel = new Label { Text = "Key Type", Dock = DockStyle.Top, Height = 20, BackColor = Color.Transparent };
-        AppTheme.Style(typeLabel);
+        // Key Type label
+        var typeLabel = MakeLabel("Key Type");
+        grid.Controls.Add(typeLabel, 0, 0);
 
+        // Key Type combo
         foreach (KeyType kt in Enum.GetValues<KeyType>())
             _typeCombo.Items.Add(KeyGenerator.DisplayName(kt));
-        _typeCombo.SelectedIndex = 0;
-        _typeCombo.DropDownStyle  = ComboBoxStyle.DropDownList;
-        _typeCombo.Dock           = DockStyle.Top;
-        _typeCombo.Height         = 30;
+        _typeCombo.SelectedIndex            = 0;
+        _typeCombo.DropDownStyle            = ComboBoxStyle.DropDownList;
+        _typeCombo.Dock                     = DockStyle.Fill;
+        _typeCombo.Margin                   = new Padding(0);
         AppTheme.Style(_typeCombo);
-        _typeCombo.SelectedIndexChanged += OnTypeChanged;
+        _typeCombo.SelectedIndexChanged    += OnTypeChanged;
+        grid.Controls.Add(_typeCombo, 0, 1);
 
-        // Purpose
-        var purposeLabel = new Label { Text = "Purpose / Label", Dock = DockStyle.Top, Height = 20, BackColor = Color.Transparent };
-        AppTheme.Style(purposeLabel);
-        _purposeBox.Dock        = DockStyle.Top;
-        _purposeBox.Height      = 30;
-        _purposeBox.PlaceholderText = "e.g. immich SECRET_KEY, vaultwarden, mailcow…";
+        // Purpose label
+        grid.Controls.Add(MakeLabel("Purpose / Label"), 0, 3);
+
+        // Purpose textbox
+        _purposeBox.Dock            = DockStyle.Fill;
+        _purposeBox.Margin          = new Padding(0);
+        _purposeBox.PlaceholderText = "e.g. immich SECRET_KEY, vaultwarden…";
         AppTheme.Style(_purposeBox);
-        _purposeBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; GenerateKey(); } };
+        _purposeBox.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; GenerateKey(); }
+        };
+        grid.Controls.Add(_purposeBox, 0, 4);
 
-        // Vaultwarden-specific panel
-        BuildVaultPanel();
+        // Vaultwarden panel
+        BuildVaultInputPanel();
+        _vaultPanel.Dock   = DockStyle.Fill;
+        _vaultPanel.Margin = new Padding(0);
+        grid.Controls.Add(_vaultPanel, 0, 6);
 
         // Generate button
-        _generateBtn.Dock   = DockStyle.Top;
-        _generateBtn.Height = 38;
+        _generateBtn.Dock   = DockStyle.Fill;
+        _generateBtn.Margin = new Padding(0);
         AppTheme.StylePrimary(_generateBtn);
         _generateBtn.Click += (_, _) => GenerateKey();
+        grid.Controls.Add(_generateBtn, 0, 8);
 
         // Status label
-        _statusLabel.Dock      = DockStyle.Top;
-        _statusLabel.Height    = 22;
+        _statusLabel.Dock      = DockStyle.Fill;
+        _statusLabel.Margin    = new Padding(0, 4, 0, 0);
         _statusLabel.Font      = AppTheme.FontSmall;
         _statusLabel.ForeColor = AppTheme.TextSecondary;
         _statusLabel.BackColor = Color.Transparent;
         _statusLabel.Text      = "Ready.";
+        grid.Controls.Add(_statusLabel, 0, 9);
 
-        // Add in reverse order (DockStyle.Top stacks from bottom)
-        left.Controls.Add(_statusLabel);
-        left.Controls.Add(Spacer(6));
-        left.Controls.Add(_generateBtn);
-        left.Controls.Add(Spacer(10));
-        left.Controls.Add(_vaultPanel);
-        left.Controls.Add(Spacer(4));
-        left.Controls.Add(_purposeBox);
-        left.Controls.Add(purposeLabel);
-        left.Controls.Add(Spacer(6));
-        left.Controls.Add(_typeCombo);
-        left.Controls.Add(typeLabel);
+        return grid;
     }
 
-    private void BuildVaultPanel()
+    private void BuildVaultInputPanel()
     {
-        _vaultPanel.Dock      = DockStyle.Top;
-        _vaultPanel.Height    = 80;
         _vaultPanel.BackColor = Color.Transparent;
         _vaultPanel.Visible   = false;
 
+        // Inner grid: label, textbox, gap, checkbox
+        var inner = new TableLayoutPanel
+        {
+            Dock        = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount    = 4,
+            BackColor   = Color.Transparent,
+            Padding     = new Padding(0),
+            Margin      = new Padding(0),
+        };
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));  // label
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));  // textbox
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 6));   // gap
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));  // checkbox
+
+        var passLabel = new Label
+        {
+            Text      = "Password (leave blank to auto-generate)",
+            Dock      = DockStyle.Fill,
+            Margin    = new Padding(0),
+            Font      = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextSecondary,
+            BackColor = Color.Transparent,
+            TextAlign = ContentAlignment.BottomLeft,
+        };
+        inner.Controls.Add(passLabel, 0, 0);
+
+        _vaultPassBox.Dock          = DockStyle.Fill;
+        _vaultPassBox.Margin        = new Padding(0);
+        _vaultPassBox.PasswordChar  = '●';
+        _vaultPassBox.PlaceholderText = "Auto-generated if blank";
+        AppTheme.Style(_vaultPassBox);
+        inner.Controls.Add(_vaultPassBox, 0, 1);
+
         _vaultAutoCheck.Text      = "Auto-generate password";
         _vaultAutoCheck.Checked   = true;
-        _vaultAutoCheck.Dock      = DockStyle.Top;
-        _vaultAutoCheck.Height    = 22;
+        _vaultAutoCheck.Dock      = DockStyle.Fill;
+        _vaultAutoCheck.Margin    = new Padding(0);
+        _vaultAutoCheck.Font      = AppTheme.FontSmall;
         _vaultAutoCheck.ForeColor = AppTheme.TextSecondary;
         _vaultAutoCheck.BackColor = Color.Transparent;
-        _vaultAutoCheck.Font      = AppTheme.FontSmall;
-        _vaultAutoCheck.CheckedChanged += (_, _) => _vaultPassBox.Enabled = !_vaultAutoCheck.Checked;
+        _vaultAutoCheck.CheckedChanged += (_, _) =>
+        {
+            _vaultPassBox.Enabled = !_vaultAutoCheck.Checked;
+            _vaultPassBox.Clear();
+        };
+        inner.Controls.Add(_vaultAutoCheck, 0, 3);
 
-        var passLabel = new Label { Text = "Password (for Argon2id hash)", Dock = DockStyle.Top, Height = 18, BackColor = Color.Transparent };
-        passLabel.Font      = AppTheme.FontSmall;
-        passLabel.ForeColor = AppTheme.TextSecondary;
-
-        _vaultPassBox.Dock          = DockStyle.Top;
-        _vaultPassBox.Height        = 28;
-        _vaultPassBox.PasswordChar  = '●';
-        _vaultPassBox.Enabled       = false;
-        _vaultPassBox.PlaceholderText = "Leave blank to auto-generate";
-        AppTheme.Style(_vaultPassBox);
-
-        _vaultPanel.Controls.Add(_vaultAutoCheck);
-        _vaultPanel.Controls.Add(Spacer(3));
-        _vaultPanel.Controls.Add(_vaultPassBox);
-        _vaultPanel.Controls.Add(passLabel);
+        _vaultPanel.Controls.Add(inner);
     }
 
-    private void BuildRightOutput(TableLayoutPanel parent)
-    {
-        var right = new Panel
-        {
-            Dock      = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            Padding   = new Padding(0, 4, 0, 0),
-        };
-        parent.Controls.Add(right, 1, 0);
+    // ── Right grid: output label, output box, copy, vault password section ────
 
-        // Output header row
-        var outHeaderPanel = new Panel
+    private TableLayoutPanel BuildRightGrid()
+    {
+        var grid = new TableLayoutPanel
         {
-            Dock      = DockStyle.Top,
-            Height    = 24,
-            BackColor = Color.Transparent,
+            Dock        = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount    = 5,
+            BackColor   = Color.Transparent,
+            Padding     = new Padding(0),
+            Margin      = new Padding(0),
         };
-        var outLabel = new Label
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));   // 0 header row (label + Copied!)
+        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 1 output textbox (fills)
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));   // 2 copy button
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));    // 3 gap
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));   // 4 vault password out
+
+        // Header: label + "Copied!" badge side by side
+        var hdr = new TableLayoutPanel
         {
-            Text      = "Generated Key",
-            Dock      = DockStyle.Left,
-            Width     = 200,
-            BackColor = Color.Transparent,
+            Dock        = DockStyle.Fill,
+            Margin      = new Padding(0),
+            ColumnCount = 2,
+            RowCount    = 1,
+            BackColor   = Color.Transparent,
         };
-        AppTheme.Style(outLabel);
-        _copiedLabel.Dock      = DockStyle.Right;
-        _copiedLabel.Width     = 60;
+        hdr.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        hdr.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+
+        hdr.Controls.Add(MakeLabel("Generated Key"), 0, 0);
+
+        _copiedLabel.Dock      = DockStyle.Fill;
+        _copiedLabel.Margin    = new Padding(0);
         _copiedLabel.ForeColor = AppTheme.Success;
         _copiedLabel.Font      = AppTheme.FontSmall;
         _copiedLabel.TextAlign = ContentAlignment.MiddleRight;
         _copiedLabel.BackColor = Color.Transparent;
-        outHeaderPanel.Controls.Add(_copiedLabel);
-        outHeaderPanel.Controls.Add(outLabel);
+        hdr.Controls.Add(_copiedLabel, 1, 0);
 
-        // Main output textbox
-        _outputBox.Multiline  = true;
-        _outputBox.ReadOnly   = true;
-        _outputBox.ScrollBars = ScrollBars.Vertical;
-        _outputBox.Dock       = DockStyle.Top;
-        _outputBox.Height     = 100;
+        grid.Controls.Add(hdr, 0, 0);
+
+        // Output textbox
+        _outputBox.Multiline    = true;
+        _outputBox.ReadOnly     = true;
+        _outputBox.ScrollBars   = ScrollBars.Vertical;
+        _outputBox.Dock         = DockStyle.Fill;
+        _outputBox.Margin       = new Padding(0);
         _outputBox.PlaceholderText = "Key will appear here…";
         AppTheme.Style(_outputBox, mono: true);
+        grid.Controls.Add(_outputBox, 0, 1);
 
-        // Copy main output
-        _copyOutputBtn.Dock   = DockStyle.Top;
-        _copyOutputBtn.Height = 30;
+        // Copy button
+        _copyOutputBtn.Dock   = DockStyle.Fill;
+        _copyOutputBtn.Margin = new Padding(0, 4, 0, 0);
         AppTheme.StyleSecondary(_copyOutputBtn);
         _copyOutputBtn.Click += (_, _) => CopyToClipboard(_outputBox.Text, _copiedLabel);
+        grid.Controls.Add(_copyOutputBtn, 0, 2);
 
-        // Vaultwarden plain password row (hidden unless vaultwarden type)
-        var passHeaderLabel = new Label
-        {
-            Text      = "Admin Password (enter this in Vaultwarden login)",
-            Dock      = DockStyle.Top,
-            Height    = 20,
-            BackColor = Color.Transparent,
-        };
-        AppTheme.Style(passHeaderLabel, secondary: true);
-        passHeaderLabel.Font = AppTheme.FontSmall;
+        // Vault password output panel
+        _vaultOutPanel.Dock      = DockStyle.Fill;
+        _vaultOutPanel.Margin    = new Padding(0);
+        _vaultOutPanel.BackColor = Color.Transparent;
+        BuildVaultOutputPanel(_vaultOutPanel);
+        grid.Controls.Add(_vaultOutPanel, 0, 4);
 
-        _vaultPassOut.ReadOnly = true;
-        _vaultPassOut.Dock     = DockStyle.Top;
-        _vaultPassOut.Height   = 30;
-        AppTheme.Style(_vaultPassOut, mono: true);
-
-        _copyPassBtn.Dock    = DockStyle.Top;
-        _copyPassBtn.Height  = 28;
-        AppTheme.StyleSecondary(_copyPassBtn);
-        _copyPassBtn.Click  += (_, _) => CopyToClipboard(_vaultPassOut.Text, _copiedLabel);
-
-        // Group the vault-password output elements so we can hide/show together
-        var vaultOutPanel = new Panel
-        {
-            Dock      = DockStyle.Top,
-            Height    = 84,
-            BackColor = Color.Transparent,
-            Tag       = "vaultout",
-            Visible   = false,
-        };
-        vaultOutPanel.Controls.Add(_copyPassBtn);
-        vaultOutPanel.Controls.Add(_vaultPassOut);
-        vaultOutPanel.Controls.Add(passHeaderLabel);
-
-        // Stack (reverse order for DockStyle.Top)
-        right.Controls.Add(vaultOutPanel);
-        right.Controls.Add(Spacer(6));
-        right.Controls.Add(_copyOutputBtn);
-        right.Controls.Add(_outputBox);
-        right.Controls.Add(Spacer(4));
-        right.Controls.Add(outHeaderPanel);
+        return grid;
     }
 
-    private void BuildHistoryCard(Panel card)
+    private void BuildVaultOutputPanel(Panel container)
     {
-        // Header row
-        var hdrPanel = new Panel
+        var inner = new TableLayoutPanel
         {
-            Dock      = DockStyle.Top,
-            Height    = 30,
-            BackColor = Color.Transparent,
+            Dock        = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount    = 3,
+            BackColor   = Color.Transparent,
+            Padding     = new Padding(0),
+            Margin      = new Padding(0),
         };
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));  // label
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));  // textbox
+        inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));  // copy button
+
+        var lbl = new Label
+        {
+            Text      = "Admin Password (use this to log into Vaultwarden)",
+            Dock      = DockStyle.Fill,
+            Margin    = new Padding(0),
+            Font      = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextSecondary,
+            BackColor = Color.Transparent,
+            TextAlign = ContentAlignment.BottomLeft,
+        };
+        inner.Controls.Add(lbl, 0, 0);
+
+        _vaultPassOut.ReadOnly = true;
+        _vaultPassOut.Dock     = DockStyle.Fill;
+        _vaultPassOut.Margin   = new Padding(0);
+        AppTheme.Style(_vaultPassOut, mono: true);
+        inner.Controls.Add(_vaultPassOut, 0, 1);
+
+        _copyPassBtn.Dock   = DockStyle.Fill;
+        _copyPassBtn.Margin = new Padding(0, 4, 0, 0);
+        AppTheme.StyleSecondary(_copyPassBtn);
+        _copyPassBtn.Click += (_, _) => CopyToClipboard(_vaultPassOut.Text, _copiedLabel);
+        inner.Controls.Add(_copyPassBtn, 0, 2);
+
+        container.Controls.Add(inner);
+    }
+
+    // ── History card ─────────────────────────────────────────────────────────
+
+    private Panel BuildHistoryCard()
+    {
+        var card = new Panel
+        {
+            Dock      = DockStyle.Fill,
+            BackColor = AppTheme.Surface,
+            Padding   = new Padding(16, 10, 16, 10),
+            Margin    = new Padding(0, 8, 0, 0),
+        };
+
+        // Header
+        var hdr = new TableLayoutPanel
+        {
+            Dock        = DockStyle.Top,
+            Height      = 30,
+            ColumnCount = 2,
+            RowCount    = 1,
+            BackColor   = Color.Transparent,
+            Margin      = new Padding(0),
+            Padding     = new Padding(0),
+        };
+        hdr.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        hdr.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
+
         var hdrLabel = new Label
         {
-            Text      = "Generation History  (stored encrypted, current user only)",
-            Dock      = DockStyle.Left,
-            Width     = 500,
+            Text      = "Generation History  (encrypted, current user only)",
+            Dock      = DockStyle.Fill,
+            Margin    = new Padding(0),
+            Font      = AppTheme.FontSmall,
+            ForeColor = AppTheme.TextSecondary,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft,
         };
-        AppTheme.Style(hdrLabel, secondary: true);
-        hdrLabel.Font = AppTheme.FontSmall;
+        hdr.Controls.Add(hdrLabel, 0, 0);
 
-        _clearHistBtn.Dock   = DockStyle.Right;
-        _clearHistBtn.Width  = 110;
+        _clearHistBtn.Dock   = DockStyle.Fill;
+        _clearHistBtn.Margin = new Padding(0);
         AppTheme.StyleDanger(_clearHistBtn);
         _clearHistBtn.Click += OnClearHistory;
+        hdr.Controls.Add(_clearHistBtn, 1, 0);
 
-        hdrPanel.Controls.Add(_clearHistBtn);
-        hdrPanel.Controls.Add(hdrLabel);
+        card.Controls.Add(hdr);
 
         // ListView
-        _historyView.Dock          = DockStyle.Fill;
-        _historyView.View          = View.Details;
-        _historyView.FullRowSelect  = true;
-        _historyView.GridLines      = false;
-        _historyView.BackColor      = AppTheme.SurfaceAlt;
-        _historyView.ForeColor      = AppTheme.TextPrimary;
-        _historyView.BorderStyle    = BorderStyle.None;
-        _historyView.Font           = AppTheme.FontSmall;
-        _historyView.HeaderStyle    = ColumnHeaderStyle.Nonclickable;
-        _historyView.MultiSelect    = false;
-
-        _historyView.Columns.Add("Date / Time",  138);
-        _historyView.Columns.Add("Type",         160);
-        _historyView.Columns.Add("Purpose",      200);
-        _historyView.Columns.Add("Value",        -2);    // fill remaining
-
+        _historyView.Dock         = DockStyle.Fill;
+        _historyView.View         = View.Details;
+        _historyView.FullRowSelect = true;
+        _historyView.GridLines    = false;
+        _historyView.BackColor    = AppTheme.SurfaceAlt;
+        _historyView.ForeColor    = AppTheme.TextPrimary;
+        _historyView.BorderStyle  = BorderStyle.None;
+        _historyView.Font         = AppTheme.FontSmall;
+        _historyView.HeaderStyle  = ColumnHeaderStyle.Nonclickable;
+        _historyView.MultiSelect  = false;
+        _historyView.Columns.Add("Date / Time", 138);
+        _historyView.Columns.Add("Type",        160);
+        _historyView.Columns.Add("Purpose",     200);
+        _historyView.Columns.Add("Value",        -2);
         _historyView.DoubleClick += OnHistoryDoubleClick;
 
         card.Controls.Add(_historyView);
-        card.Controls.Add(Spacer(6));
-        card.Controls.Add(hdrPanel);
+        return card;
     }
 
     // ── Logic ────────────────────────────────────────────────────────────────
@@ -362,54 +425,41 @@ public class MainForm : Form
             return;
         }
 
-        _statusLabel.Text      = "Generating…";
-        _statusLabel.ForeColor = AppTheme.TextSecondary;
+        FlashStatus("Generating…", color: AppTheme.TextSecondary);
         Application.DoEvents();
 
         string value;
-        _lastVaultPass = null;
-        HideVaultOut();
+        _vaultOutPanel.Visible = false;
+        _vaultPassOut.Clear();
 
         try
         {
             switch (type)
             {
                 case KeyType.GeneralHex32:
-                    value = KeyGenerator.GeneralHex32();
-                    break;
-
+                    value = KeyGenerator.GeneralHex32(); break;
                 case KeyType.GeneralBase64:
-                    value = KeyGenerator.GeneralBase64();
-                    break;
-
+                    value = KeyGenerator.GeneralBase64(); break;
                 case KeyType.JwtSecret:
-                    value = KeyGenerator.JwtSecret();
-                    break;
-
+                    value = KeyGenerator.JwtSecret(); break;
                 case KeyType.DatabasePassword:
-                    value = KeyGenerator.DatabasePassword();
-                    break;
-
+                    value = KeyGenerator.DatabasePassword(); break;
                 case KeyType.AlphanumericKey:
-                    value = KeyGenerator.Alphanumeric();
-                    break;
-
+                    value = KeyGenerator.Alphanumeric(); break;
                 case KeyType.VaultwardenToken:
-                    string? providedPass = _vaultAutoCheck.Checked ? null : _vaultPassBox.Text.Trim();
-                    if (!_vaultAutoCheck.Checked && string.IsNullOrEmpty(providedPass))
+                    string? provided = _vaultAutoCheck.Checked ? null : _vaultPassBox.Text.Trim();
+                    if (!_vaultAutoCheck.Checked && string.IsNullOrEmpty(provided))
                     {
                         FlashStatus("Enter a password or check auto-generate.", error: true);
                         return;
                     }
-                    var (pass, phc) = KeyGenerator.VaultwardenToken(providedPass);
-                    _lastVaultPass  = pass;
-                    value           = phc;
-                    ShowVaultOut(pass);
+                    var (pass, phc) = KeyGenerator.VaultwardenToken(provided);
+                    _vaultPassOut.Text     = pass;
+                    _vaultOutPanel.Visible = true;
+                    value = phc;
                     break;
-
                 default:
-                    value = KeyGenerator.GeneralHex32();
-                    break;
+                    value = KeyGenerator.GeneralHex32(); break;
             }
         }
         catch (Exception ex)
@@ -420,13 +470,7 @@ public class MainForm : Form
 
         _outputBox.Text = value;
 
-        var entry = new HistoryEntry(
-            GeneratedAt: DateTime.Now,
-            KeyType:     KeyGenerator.DisplayName(type),
-            Purpose:     purpose,
-            Value:       value
-        );
-
+        var entry = new HistoryEntry(DateTime.Now, KeyGenerator.DisplayName(type), purpose, value);
         _history.Insert(0, entry);
         HistoryStore.Append(entry);
         RefreshHistoryView();
@@ -436,40 +480,10 @@ public class MainForm : Form
     private void OnTypeChanged(object? sender, EventArgs e)
     {
         var type = (KeyType)_typeCombo.SelectedIndex;
-        _vaultPanel.Visible = type == KeyType.VaultwardenToken;
-        HideVaultOut();
+        _vaultPanel.Visible    = type == KeyType.VaultwardenToken;
+        _vaultOutPanel.Visible = false;
         _outputBox.Clear();
-    }
-
-    private void ShowVaultOut(string password)
-    {
-        _vaultPassOut.Text = password;
-        var panel = FindVaultOutPanel();
-        if (panel != null) panel.Visible = true;
-    }
-
-    private void HideVaultOut()
-    {
         _vaultPassOut.Clear();
-        var panel = FindVaultOutPanel();
-        if (panel != null) panel.Visible = false;
-    }
-
-    private Panel? FindVaultOutPanel()
-    {
-        // Recursively find the panel tagged "vaultout"
-        return FindTaggedPanel(this, "vaultout");
-    }
-
-    private static Panel? FindTaggedPanel(Control parent, string tag)
-    {
-        foreach (Control c in parent.Controls)
-        {
-            if (c is Panel p && p.Tag?.ToString() == tag) return p;
-            var found = FindTaggedPanel(c, tag);
-            if (found != null) return found;
-        }
-        return null;
     }
 
     private void OnHistoryDoubleClick(object? sender, EventArgs e)
@@ -477,20 +491,14 @@ public class MainForm : Form
         if (_historyView.SelectedItems.Count == 0) return;
         int idx = _historyView.SelectedItems[0].Index;
         if (idx < 0 || idx >= _history.Count) return;
-        var entry = _history[idx];
-        CopyToClipboard(entry.Value, _copiedLabel);
-        FlashStatus($"Copied value for '{entry.Purpose}' to clipboard.");
+        CopyToClipboard(_history[idx].Value, _copiedLabel);
+        FlashStatus($"Copied value for '{_history[idx].Purpose}' to clipboard.");
     }
 
     private void OnClearHistory(object? sender, EventArgs e)
     {
-        if (MessageBox.Show(
-                "Clear all history? This cannot be undone.",
-                "Clear History",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning) != DialogResult.Yes)
-            return;
-
+        if (MessageBox.Show("Clear all history? This cannot be undone.", "Clear History",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         _history.Clear();
         HistoryStore.Clear();
         _historyView.Items.Clear();
@@ -508,14 +516,16 @@ public class MainForm : Form
         _historyView.Items.Clear();
         foreach (var e in _history)
         {
-            string displayValue = e.KeyType.Contains("Vaultwarden")
-                ? e.Value[..Math.Min(40, e.Value.Length)] + "…"
-                : e.Value[..Math.Min(32, e.Value.Length)] + (e.Value.Length > 32 ? "…" : "");
+            bool isVault     = e.KeyType.Contains("Vaultwarden");
+            int  truncLen    = isVault ? 40 : 32;
+            string display   = e.Value.Length > truncLen
+                ? e.Value[..truncLen] + "…"
+                : e.Value;
 
             var item = new ListViewItem(e.GeneratedAt.ToString("yyyy-MM-dd HH:mm:ss"));
             item.SubItems.Add(e.KeyType);
             item.SubItems.Add(e.Purpose);
-            item.SubItems.Add(displayValue);
+            item.SubItems.Add(display);
             _historyView.Items.Add(item);
         }
     }
@@ -531,11 +541,11 @@ public class MainForm : Form
         t.Start();
     }
 
-    private void FlashStatus(string msg, bool error = false)
+    private void FlashStatus(string msg, bool error = false, Color? color = null)
     {
         _statusLabel.Text      = msg;
-        _statusLabel.ForeColor = error ? AppTheme.Danger : AppTheme.Success;
-        if (error) return;
+        _statusLabel.ForeColor = error ? AppTheme.Danger : (color ?? AppTheme.Success);
+        if (error || color.HasValue) return;
         var t = new System.Windows.Forms.Timer { Interval = 4000 };
         t.Tick += (_, _) =>
         {
@@ -546,6 +556,16 @@ public class MainForm : Form
         t.Start();
     }
 
-    private static Panel Spacer(int h) =>
-        new() { Dock = DockStyle.Top, Height = h, BackColor = Color.Transparent };
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static Label MakeLabel(string text) => new()
+    {
+        Text      = text,
+        Dock      = DockStyle.Fill,
+        Margin    = new Padding(0),
+        Font      = AppTheme.FontLabel,
+        ForeColor = AppTheme.TextPrimary,
+        BackColor = Color.Transparent,
+        TextAlign = ContentAlignment.BottomLeft,
+    };
 }
