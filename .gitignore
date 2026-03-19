@@ -5,3 +5,5 @@ obj/
 *.suo
 *.userprefs
 *.DotSettings.user
+publish/
+release/
