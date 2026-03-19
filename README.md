@@ -4,6 +4,8 @@ A Windows 11 local utility for quickly generating the secret keys and tokens nee
 
 No internet connection required. Keys are generated entirely on-device using cryptographically secure randomness.
 
+![BaumKeyGenerator screenshot](docs/screenshot.png)
+
 ---
 
 ## Key Types
