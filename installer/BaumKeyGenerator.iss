@@ -1,5 +1,5 @@
 #define MyAppName      "BaumKeyGenerator"
-#define MyAppVersion   "1.0.0"
+#define MyAppVersion   "1.0.1"
 #define MyAppPublisher "Bruiserbaum"
 #define MyAppURL       "https://github.com/Bruiserbaum/BaumKeyGenerator"
 #define MyAppExeName   "BaumKeyGenerator.exe"
