@@ -9,6 +9,9 @@
     <AssemblyName>BaumKeyGenerator</AssemblyName>
     <RootNamespace>BaumKeyGenerator</RootNamespace>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <AssemblyTitle>BaumKeyGenerator</AssemblyTitle>
+    <Product>BaumKeyGenerator</Product>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

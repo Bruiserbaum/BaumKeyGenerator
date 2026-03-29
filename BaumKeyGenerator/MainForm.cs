@@ -35,6 +35,7 @@ public class MainForm : Form
     private void BuildUI()
     {
         Text            = "BaumKeyGenerator";
+        Icon            = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         Size            = new Size(900, 720);
         MinimumSize     = new Size(760, 620);
         StartPosition   = FormStartPosition.CenterScreen;
