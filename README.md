@@ -84,6 +84,14 @@ ISCC installer\BaumKeyGenerator.iss
 
 ---
 
-## License
+## License and Project Status
 
-Apache 2.0 — see [LICENSE](LICENSE).
+This repository is a personal project shared publicly for learning, reference, portfolio, and experimentation purposes.
+
+Development may include AI-assisted ideation, drafting, refactoring, or code generation. All code and content published here were reviewed, selected, and curated before release.
+
+This project is licensed under the Apache License 2.0. See the LICENSE file for details.
+
+Unless explicitly stated otherwise, this repository is provided as-is, without warranty, support obligation, or guarantee of suitability for production use.
+
+Any third-party libraries, assets, icons, fonts, models, or dependencies used by this project remain subject to their own licenses and terms.
